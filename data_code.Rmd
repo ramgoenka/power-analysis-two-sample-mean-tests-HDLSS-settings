@@ -1,0 +1,167 @@
+---
+title: "GSE2034 Data"
+output: pdf_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE, warning = FALSE, message = FALSE, fig.width = 7, fig.height = 5)
+```
+
+## 1. Environment Setup & Data Loading
+
+First, we load the necessary packages and the GSE2034 breast cancer dataset. Note that the filenames have been mapped so that Group 1 represents the 179 Relapse-Free patients, and Group 2 represents the 107 Metastasis patients.
+
+```{r load-data}
+library(highmean) 
+library(MASS)     
+library(ggplot2)  
+library(pheatmap) 
+library(moments)
+library(reshape2)
+
+normal_raw <- read.table("GSE2034-Tumor.txt", header = TRUE, row.names = NULL, sep = "\t", stringsAsFactors = FALSE)
+tumor_raw <- read.table("GSE2034-Normal.txt", header = TRUE, row.names = NULL, sep = "\t", stringsAsFactors = FALSE)
+
+X <- t(normal_raw[ , -1])  
+Y <- t(tumor_raw[ , -1])   
+
+X <- matrix(as.numeric(X), nrow = nrow(X), ncol = ncol(X))
+Y <- matrix(as.numeric(Y), nrow = nrow(Y), ncol = ncol(Y))
+
+n1 <- nrow(X)
+n2 <- nrow(Y)
+p <- ncol(X)
+
+cat("Group 1 (Relapse-free) size:", n1, "\n")
+cat("Group 2 (Metastasis) size:", n2, "\n")
+cat("Number of features (genes):", p, "\n")
+
+full_data <- rbind(X, Y)
+labels <- c(rep("Relapse-Free", n1), rep("Metastasis", n2))
+```
+
+## 2. Exploratory Data Analysis (EDA)
+```{r eda, fig.show='hold'}
+gene_vars <- apply(full_data, 2, var)
+mean_var <- mean(gene_vars)
+median_var <- median(gene_vars)
+
+top_100_idx <- order(gene_vars, decreasing = TRUE)[1:100]
+top_100_genes <- full_data[, top_100_idx]
+
+par(mfrow=c(1,5))
+for(i in 1:5){
+  top_gene_idx <- order(gene_vars, decreasing = TRUE)[i]
+  boxplot(full_data[, top_gene_idx] ~ labels, 
+          main = paste("Top Var Gene", i), ylab="Expression", col=c("lightblue", "lightcoral"))
+}
+par(mfrow=c(1,1))
+
+pca_full <- prcomp(full_data, center = TRUE, scale. = FALSE) 
+df_pca <- data.frame(PC1 = pca_full$x[,1], PC2 = pca_full$x[,2], Group = labels)
+
+ggplot(df_pca, aes(x = PC1, y = PC2, color = Group)) +
+  geom_point(alpha = 0.7, size = 3) +
+  theme_minimal() +
+  ggtitle("PCA Scatterplot: First Two Principal Components")
+
+cor_top100 <- cor(top_100_genes)
+pheatmap(cor_top100, show_rownames = FALSE, show_colnames = FALSE, 
+         main = "Correlation Heatmap (Top 100 Variance Genes)")
+```
+
+### Summary Metrics
+```{r metrics}
+balance_ratio <- n1 / n2
+prop_var_top10 <- sum(pca_full$sdev[1:10]^2) / sum(pca_full$sdev^2)
+
+cat("Balance Ratio (n1/n2):", round(balance_ratio, 3), "\n")
+cat("Mean Feature Variance:", round(mean_var, 3), "\n")
+cat("Median Feature Variance:", round(median_var, 3), "\n")
+cat("Variance Explained by Top 10 PCs:", round(prop_var_top10 * 100, 2), "%\n")
+```
+
+## 3. Assumption Checks
+```{r qq-plots}
+par(mfrow=c(2,2))
+set.seed(2221) 
+sample_genes <- sample(1:p, 4)
+for(g in sample_genes) {
+  qqnorm(full_data[, g], main = paste("Q-Q Plot: Gene Index", g))
+  qqline(full_data[, g], col="red")
+}
+par(mfrow=c(1,1))
+```
+
+## 4. Full Feature Set Testing (p = 12634)
+```{r full-tests}
+get_p <- function(test_output) {
+  if(is.list(test_output)) {
+    if("p.value" %in% names(test_output)) return(as.numeric(test_output$p.value))
+    if("pval" %in% names(test_output)) return(as.numeric(test_output$pval))
+    return(as.numeric(tail(unlist(test_output), 1)))
+  }
+  return(as.numeric(test_output))
+}
+
+pval_bs_full <- get_p(apval_Bai1996(X, Y))
+pval_cq_full <- get_p(apval_Chen2010(X, Y))
+pval_sd_full <- get_p(apval_Sri2008(X, Y))
+
+data.frame(
+  Test = c("Bai-Saranadasa", "Chen-Qin", "Srivastava-Du"),
+  P_Value = c(pval_bs_full, pval_cq_full, pval_sd_full)
+)
+```
+
+## 5. PCA Projection Analysis
+```{r pca-tests}
+k_values <- c(10, 50, 100, 200)
+
+hotellings_t2 <- function(X_proj, Y_proj) {
+  n1 <- nrow(X_proj)
+  n2 <- nrow(Y_proj)
+  k <- ncol(X_proj)
+  mean_diff <- colMeans(X_proj) - colMeans(Y_proj)
+  
+  S_pool <- ((n1 - 1) * cov(X_proj) + (n2 - 1) * cov(Y_proj)) / (n1 + n2 - 2)
+  
+  if (k < (n1 + n2 - 2)) {
+    S_inv <- solve(S_pool)
+    T2 <- (n1 * n2) / (n1 + n2) * as.numeric(t(mean_diff) %*% S_inv %*% mean_diff)
+    F_stat <- (n1 + n2 - k - 1) / (k * (n1 + n2 - 2)) * T2
+    p_val <- 1 - pf(F_stat, df1 = k, df2 = n1 + n2 - k - 1)
+  } else {
+    p_val <- NA 
+  }
+  return(as.numeric(p_val))
+}
+
+results_pca <- data.frame(k = integer(), BS = numeric(), CQ = numeric(), 
+                          SD = numeric(), HT2 = numeric())
+
+for (k in k_values) {
+  X_k <- pca_full$x[1:n1, 1:k]
+  Y_k <- pca_full$x[(n1 + 1):(n1 + n2), 1:k]
+  
+  p_bs <- get_p(apval_Bai1996(X_k, Y_k))
+  p_cq <- get_p(apval_Chen2010(X_k, Y_k))
+  p_sd <- get_p(apval_Sri2008(X_k, Y_k))
+  p_ht2 <- hotellings_t2(X_k, Y_k) 
+  
+  results_pca <- rbind(results_pca, data.frame(k = k, BS = p_bs, CQ = p_cq, 
+                                               SD = p_sd, HT2 = p_ht2))
+}
+
+knitr::kable(results_pca, digits = 8)
+
+ggplot(melt(results_pca, id.vars = "k"), aes(x = k, y = value, color = variable)) +
+  geom_line(linewidth = 1) +
+  geom_point(size = 3) +
+  geom_hline(yintercept = 0.05, linetype = "dashed", color = "black") +
+  scale_y_log10() +
+  labs(title = "Test Power (P-values) across PCA Dimensions (k)", 
+       y = "Log10(P-value)", x = "Number of Principal Components (k)",
+       color = "Test") +
+  theme_minimal()
+```
