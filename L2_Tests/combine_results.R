@@ -1,10 +1,5 @@
 ###############################################################################
 # combine_results.R
-#
-# Run after all SLURM array jobs in the current batch complete. Combines
-# per-task CSVs into one master file and prints a quick summary.
-#
-# Usage: Rscript combine_results.R
 ###############################################################################
 
 result_files <- list.files("results", pattern = "^result_task_.*\\.csv$",
@@ -23,9 +18,6 @@ write.csv(all_results, "all_results_combined.csv", row.names = FALSE)
 cat(sprintf("Combined results saved to all_results_combined.csv\n"))
 cat(sprintf("Total configs: %d\n", nrow(all_results)))
 
-###############################################################################
-# Diagnostic: any NA p-values?
-###############################################################################
 na_cols   <- grep("^na_", names(all_results), value = TRUE)
 total_nas <- sum(all_results[, na_cols])
 if (total_nas > 0) {
@@ -36,17 +28,11 @@ if (total_nas > 0) {
   cat("\nNo NA p-values: all tests ran cleanly.\n")
 }
 
-###############################################################################
-# Type I error summary (signal = null)
-###############################################################################
 cat("\n=== Type I Error (signal = null) ===\n")
 null_res   <- all_results[all_results$signal == "null", ]
 power_cols <- grep("^power_", names(all_results), value = TRUE)
 print(null_res[, c("p", "n", "cov_model", "rho", power_cols)])
 
-###############################################################################
-# Timing
-###############################################################################
 cat("\n=== Timing Summary ===\n")
 cat(sprintf("Total compute (sum of tasks): %.1f hours\n",
             sum(all_results$time_min) / 60))
