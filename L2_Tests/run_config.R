@@ -1,36 +1,29 @@
 ###############################################################################
 # run_config.R
 #
-# Runs ONE configuration of the L2-family simulation, indexed by
-# SLURM_ARRAY_TASK_ID. Designed to be invoked by submit_sim.slurm.
-#
 # Tests included (8 total):
 #
 #   ORIGINAL NORMAL-APPROXIMATION L2 TESTS:
-#     BS_norm  : Bai & Saranadasa 1996               via HDNRA::BS1996.TS.NABT
-#     CQ_norm  : Chen & Qin 2010                     via HDNRA::CQ2010.TSBF.NABT
-#     SD_norm  : Srivastava & Du 2008                via HDNRA::SD2008.TS.NABT
-#     SKK_norm : Srivastava, Katayama, Kano 2013     via HDNRA::SKK2013.TSBF.NABT
+#     BS_norm : Bai & Saranadasa 1996 via HDNRA::BS1996.TS.NABT
+#     CQ_norm : Chen & Qin 2010 via HDNRA::CQ2010.TSBF.NABT
+#     SD_norm : Srivastava & Du 2008 via HDNRA::SD2008.TS.NABT
+#     SKK_norm : Srivastava, Katayama, Kano 2013 via HDNRA::SKK2013.TSBF.NABT
 #
 #   SPARSITY-AWARE L2 TEST:
-#     CLZ      : Chen, Li, Zhong 2014 / 2019         via highmean::apval_Chen2014
+#     CLZ : Chen, Li, Zhong 2014 / 2019 via highmean::apval_Chen2014
 #
 #   NORMAL-REFERENCE VARIANTS:
-#     BS_3c    : Zhang & Zhu 2022 (TS, 3-cumulant)   via HDNRA::ZZ2022.TS.3cNRT
-#     CQ_3c    : Zhang & Zhu 2022 (TSBF, 3-cumulant) via HDNRA::ZZ2022.TSBF.3cNRT
-#     ZZZ23    : Zhang et al. 2023 (TSBF, scale-inv) via HDNRA::ZZZ2023.TSBF.2cNRT
+#     BS_3c : Zhang & Zhu 2022 (TS, 3-cumulant) via HDNRA::ZZ2022.TS.3cNRT
+#     CQ_3c : Zhang & Zhu 2022 (TSBF, 3-cumulant) via HDNRA::ZZ2022.TSBF.3cNRT
+#     ZZZ23 : Zhang et al. 2023 (TSBF, scale-inv) via HDNRA::ZZZ2023.TSBF.2cNRT
 #
 # Grid:
-#   p     : {200, 500, 1000}                         (BATCH 1 -- edit for 2/3)
-#   n     : {5, 10, 20, 50, 100}
-#   cov   : {identity, cs, ar1}
+#   p : {200, 500, 1000, 2000, 10000}                         
+#   n : {5, 10, 20, 50, 100}
+#   cov : {identity, cs, ar1}
 #   signal: {null, sparse, moderate, dense}
-#   rho   : {0.1, 0.2, 0.3, 0.4, 0.5, 0.7, 0.8}      (cs/ar1 only; identity NA)
-#
-# Output: results/result_task_NNNN.csv (one row per task)
+#   rho : {0.1, 0.2, 0.3, 0.4, 0.5, 0.7, 0.8}      (cs/ar1 only; identity NA)
 ###############################################################################
-
-# Use personal library
 lib_path <- Sys.getenv("R_LIBS_USER")
 if (lib_path == "") lib_path <- file.path(Sys.getenv("HOME"), "R_libs")
 .libPaths(c(lib_path, .libPaths()))
@@ -124,10 +117,6 @@ run_all_tests <- function(X, Y) {
 
 ###############################################################################
 # Build the simulation grid.
-#
-# CURRENT BATCH: p in {200, 500, 1000}.
-# For batch 2, change p_grid to c(2000) and update --array=1-300 in submit script.
-# For batch 3, change p_grid to c(10000) and update --array=1-300.
 ###############################################################################
 p_grid   <- c(200, 500, 1000)
 n_grid   <- c(5, 10, 20, 50, 100)
