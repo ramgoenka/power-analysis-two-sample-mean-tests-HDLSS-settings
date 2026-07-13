@@ -1,5 +1,5 @@
 ###############################################################################
-# decorrelation.R  -- DECORRELATION PILOT (Compound Symmetry only)
+# decorrelation.R  -- (Compound Symmetry only)
 #
 # decorr modes:
 #   none
@@ -48,8 +48,6 @@ estimate_cs_rho <- function(X, Y) {
   rho_hat  <- (sum_R - p) / (p * (p - 1))
   max(min(rho_hat, 0.999), -1/(p - 1) + 1e-6)
 }
-
-# Dispatch on decorrelation mode
 decorrelate_pair <- function(X, Y, mode, rho_true = NA_real_) {
   if (mode == "none") return(list(X = X, Y = Y, rho_used = NA_real_))
   rho_use <- if (mode == "oracle") rho_true else estimate_cs_rho(X, Y)
@@ -67,12 +65,12 @@ make_mu_moderate <- function(p) { mu <- rep(0, p); mu[1:floor(0.20 * p)] <- 0.25
 make_mu_dense    <- function(p) rep(sqrt(0.0125), p)
 
 ###############################################################################
-# CS data generator (only one needed for this pilot)
+# CS data generator
 ###############################################################################
 generate_cs <- function(n, p, rho, mu = rep(0, p)) {
   Z <- matrix(rnorm(n * p), nrow = n, ncol = p)
   W <- rnorm(n)
-  X <- sqrt(1 - rho) * Z + sqrt(rho) * W
+  X <- sqrt(1 - rho) * Z + sqrt(rho) * matrix(W, nrow = n, ncol = p)
   if (any(mu != 0)) X <- sweep(X, 2, mu, "+")
   X
 }
@@ -94,21 +92,18 @@ generate_two_sample <- function(n, p, signal, rho) {
 run_all_tests <- function(X, Y) {
   safe <- function(expr) tryCatch(expr, error = function(e) NA_real_)
   c(
-    BS_norm  = safe(BS1996.TS.NABT(X, Y)$p.value),
-    CQ_norm  = safe(CQ2010.TSBF.NABT(X, Y)$p.value),
-    SD_norm  = safe(SD2008.TS.NABT(X, Y)$p.value),
-    SKK_norm = safe(SKK2013.TSBF.NABT(X, Y)$p.value),
-    BS_3c    = safe(ZZ2022.TS.3cNRT(X, Y)$p.value),
-    CQ_3c    = safe(ZZ2022.TSBF.3cNRT(X, Y)$p.value),
-    ZZZ23    = safe(ZZZ2023.TSBF.2cNRT(X, Y)$p.value),
-    CLZ      = safe(apval_Chen2014(X, Y)$pval)
+    BS_norm = safe(BS1996.TS.NABT(X, Y)$p.value),
+    CQ_norm = safe(CQ2010.TSBF.NABT(X, Y)$p.value),
+    SD_norm = safe(SD2008.TS.NABT(X, Y)$p.value),
+    BS_3c   = safe(ZZ2022.TS.3cNRT(X, Y)$p.value),
+    CQ_3c   = safe(ZZ2022.TSBF.3cNRT(X, Y)$p.value)
   )
 }
 
 ###############################################################################
 # Pilot grid
 ###############################################################################
-p_grid      <- c(200)
+p_grid      <- c(10000)
 n_grid      <- c(5, 10, 20, 50, 100)
 sig_grid    <- c("null", "sparse", "moderate", "dense")
 rho_grid    <- c(0.1, 0.2, 0.3, 0.4, 0.5, 0.7, 0.8)
@@ -139,8 +134,8 @@ cat(sprintf("  p=%d, n=%d, cov=%s, signal=%s, rho=%.2f, decorr=%s, B=%d\n",
 
 set.seed(2026 + task_id)
 
-test_names    <- c("BS_norm", "CQ_norm", "SD_norm", "SKK_norm",
-                   "BS_3c",   "CQ_3c",   "ZZZ23",   "CLZ")
+test_names    <- c("BS_norm", "CQ_norm", "SD_norm",
+                   "BS_3c",   "CQ_3c")
 reject_counts <- setNames(integer(length(test_names)), test_names)
 na_counts     <- setNames(integer(length(test_names)), test_names)
 
@@ -197,21 +192,13 @@ result <- data.frame(
   power_BS_norm  = reject_counts["BS_norm"]  / n_iter,
   power_CQ_norm  = reject_counts["CQ_norm"]  / n_iter,
   power_SD_norm  = reject_counts["SD_norm"]  / n_iter,
-  power_SKK_norm = reject_counts["SKK_norm"] / n_iter,
   power_BS_3c    = reject_counts["BS_3c"]    / n_iter,
   power_CQ_3c    = reject_counts["CQ_3c"]    / n_iter,
-  power_ZZZ23    = reject_counts["ZZZ23"]    / n_iter,
-  power_CLZ      = reject_counts["CLZ"]      / n_iter,
-  
   na_BS_norm     = na_counts["BS_norm"],
   na_CQ_norm     = na_counts["CQ_norm"],
   na_SD_norm     = na_counts["SD_norm"],
-  na_SKK_norm    = na_counts["SKK_norm"],
   na_BS_3c       = na_counts["BS_3c"],
   na_CQ_3c       = na_counts["CQ_3c"],
-  na_ZZZ23       = na_counts["ZZZ23"],
-  na_CLZ         = na_counts["CLZ"],
-  
   time_min       = round(elapsed, 2),
   row.names      = NULL
 )
