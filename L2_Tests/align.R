@@ -13,7 +13,6 @@ suppressPackageStartupMessages({
 ###############################################################################
 # Decorrelation helpers
 ###############################################################################
-
 decorrelate_cs <- function(X, rho) {
   p <- ncol(X)
   rho <- max(min(rho, 0.999), -1/(p - 1) + 1e-6)
@@ -39,8 +38,6 @@ estimate_cs_rho <- function(X, Y) {
   max(min(rho_hat, 0.999), -1/(p - 1) + 1e-6)
 }
 
-
-
 decorrelate_pair <- function(X, Y, mode, rho_true = NA_real_) {
   if (mode == "none") return(list(X = X, Y = Y, rho_used = NA_real_))
   rho_use <- if (mode == "oracle") rho_true else estimate_cs_rho(X, Y)
@@ -52,13 +49,12 @@ decorrelate_pair <- function(X, Y, mode, rho_true = NA_real_) {
 ###############################################################################
 # Alignment signal construction
 ###############################################################################
-
 make_v_perp <- function(p, seed = 4242) {
   rng_state <- if (exists(".Random.seed", envir = .GlobalEnv)) .Random.seed else NULL
-  set.seed(seed + p)              # depends on p only
+  set.seed(seed + p)            
   v0 <- rnorm(p)
-  v0 <- v0 - mean(v0)             # project out 1_p
-  v0 <- v0 / sqrt(sum(v0^2))      # unit norm
+  v0 <- v0 - mean(v0)           
+  v0 <- v0 / sqrt(sum(v0^2))    
   if (!is.null(rng_state)) assign(".Random.seed", rng_state, envir = .GlobalEnv)
   v0
 }
@@ -68,7 +64,7 @@ make_mu_aligned <- function(p, alpha2, v_perp) {
   energy <- 0.0125 * p
   alpha  <- sqrt(alpha2)
   beta   <- sqrt(1 - alpha2)
-  e1 <- rep(1 / sqrt(p), p)       # 1_p/sqrt(p) direction
+  e1 <- rep(1 / sqrt(p), p)    
   sqrt(energy) * (alpha * e1 + beta * v_perp)
 
 }
@@ -76,7 +72,6 @@ make_mu_aligned <- function(p, alpha2, v_perp) {
 ###############################################################################
 # CS data generator
 ###############################################################################
-
 generate_cs <- function(n, p, rho, mu = rep(0, p)) {
   Z <- matrix(rnorm(n * p), nrow = n, ncol = p)
   W <- rnorm(n)
@@ -110,6 +105,7 @@ alpha_sig <- 0.05
 grid <- expand.grid(p = p_grid, n = n_grid, cov_model = "cs",
                     alpha2 = alpha2_grid, rho = rho_grid, decorr = decorr_grid,
                     stringsAsFactors = FALSE)
+                                  
 ###############################################################################
 # Task dispatch
 ###############################################################################
@@ -123,11 +119,8 @@ cfg <- grid[task_id, ]
 cat(sprintf("Task %d / %d:\n", task_id, nrow(grid)))
 cat(sprintf("  p=%d, n=%d, cov=%s, alpha2=%.3f, rho=%.2f, decorr=%s, B=%d\n",
             cfg$p, cfg$n, cfg$cov_model, cfg$alpha2, cfg$rho, cfg$decorr, n_iter))
-# Offset seed: keeps position-based determinism but guarantees the refinement
-# draws are independent of the original run's seeds (2026 + task_id).
 set.seed(990000 + task_id)
-# Build the fixed v_perp and the signal mu2 once per task.
-v_perp <- make_v_perp(cfg$p)        # deterministic in p
+v_perp <- make_v_perp(cfg$p)       
 mu2    <- make_mu_aligned(cfg$p, cfg$alpha2, v_perp)
 
 # Sanity: verify ||mu2||^2 = 0.0125 * p (energy held fixed across alpha2)
